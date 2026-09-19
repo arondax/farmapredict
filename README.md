@@ -8,58 +8,83 @@ Predicción de desabastecimientos de medicamentos y recomendación de sustitutiv
 
 ## Objetivo
 
-Construir una plataforma que permita anticipar el riesgo de desabastecimiento de medicamentos y recomendar sustitutivos equivalentes, para ayudar a farmacias y distribuidores a proteger la continuidad de los tratamientos.
+Construir una plataforma que permita estimar el riesgo de desabastecimiento de un medicamento en los próximos 30 días y recomendar sustitutivos equivalentes, para que farmacias y distribuidores anticipen sus pedidos y eviten interrumpir tratamientos.
 
-<!-- TODO: añadir métricas objetivo con línea base (p. ej. PR-AUC del clasificador frente a un modelo ingenuo; precisión de los sustitutivos frente a las equivalencias oficiales). -->
+**Criterios de éxito**
+
+1. El clasificador supera en PR-AUC a una línea base ingenua (tasa histórica de incidencias por código ATC).
+2. El recomendador propone al menos un sustitutivo para la mayoría de los medicamentos con problema de suministro.
+3. Todo el sistema se levanta con un único `docker compose up`.
+
+<!-- Los umbrales numéricos se fijarán tras medir la línea base (semana 2). -->
 
 ## Problema
 
-La información sobre problemas de suministro de medicamentos es pública, pero está dispersa. Las farmacias pierden ventas y capacidad de previsión en sus pedidos, y los pacientes ven interrumpidos sus tratamientos cuando no encuentran su fármaco ni una alternativa equivalente.
+La información sobre problemas de suministro de medicamentos es pública, pero está dispersa y es reactiva. Las farmacias pierden ventas y capacidad de previsión en sus pedidos, y los pacientes ven interrumpidos sus tratamientos cuando no encuentran su fármaco ni una alternativa equivalente.
 
 ## Alcance
 
-| Dentro (IN) | Fuera (OUT) |
-|---|---|
-| Ingesta programada desde la API REST de AEMPS CIMA | Integración con robots de almacenamiento de farmacias |
-| Modelo de clasificación del riesgo de desabastecimiento (30 días) | Escritura sobre ERPs o sistemas de receta electrónica |
-| Previsión de demanda estacional por código ATC | Aplicaciones móviles nativas |
-| Recomendador de sustitutivos por principio activo y forma | Diagnóstico médico o prescripción clínica |
-| API REST y dashboard interactivo, todo en Docker Compose | Datos reales de farmacias, autenticación y multiusuario |
+**Dentro (MVP)**
 
-<!-- TODO: cerrar en equipo qué parte es MVP y qué parte queda como ampliación. -->
+- Ingesta programada (Airflow) desde la API REST de AEMPS CIMA a PostgreSQL, con snapshots diarios para construir histórico propio.
+- Clasificador XGBoost del riesgo de desabastecimiento a 30 días, comparado con una línea base.
+- Recomendador de sustitutivos por reglas (principio activo, dosis y forma farmacéutica).
+- API REST en FastAPI (riesgo y sustitutivos).
+- Dashboard en Streamlit: alertas y comparador de sustitutivos.
+- Entorno reproducible con Docker Compose y tests básicos (PyTest).
+
+**Dentro condicionado** (solo cuando el MVP funcione de extremo a extremo)
+
+- Previsión de demanda estacional por ATC (Prophet) con datos del Ministerio de Sanidad.
+- Ordenación de sustitutivos por similitud de fichas técnicas (embeddings + Qdrant).
+- PySpark, solo si el volumen de datos lo justifica.
+- Simulador de pedidos con datos sintéticos.
+
+**Fuera**
+
+- Integración con robots de almacenamiento, ERPs o receta electrónica.
+- Aplicaciones móviles nativas.
+- Diagnóstico médico o prescripción clínica.
+- Datos reales de farmacias, autenticación y multiusuario.
+- Despliegue en la nube.
+- Reentrenamiento automático y monitorización de modelos.
 
 Los sustitutivos que recomiende el sistema son **informativos**: la decisión final corresponde siempre al farmacéutico.
 
 ## Arquitectura (alto nivel, provisional)
 
-| Capa | Componentes previstos | Función |
+| Pieza | Función | Tecnología |
 |---|---|---|
-| Ingesta y ETL | Apache Airflow, Python, PySpark | Consumir CIMA y transformar el catálogo |
-| Almacenamiento | PostgreSQL, Qdrant | Datos relacionales y búsqueda vectorial |
-| IA / ML | XGBoost, Prophet, embeddings | Riesgo de rotura, demanda y similitud de fármacos |
-| API | FastAPI | Exponer predicciones y recomendaciones |
-| Presentación | Streamlit, Plotly | Dashboard de alertas y comparador de sustitutivos |
+| Ingesta y ETL | Descarga programada de CIMA, limpieza y carga | Apache Airflow, Python |
+| Almacenamiento | Catálogo, histórico de suministro y variables del modelo | PostgreSQL |
+| Modelo de riesgo | Clasificador a 30 días y modelos de referencia | XGBoost, regresión logística |
+| Recomendador | Sustitutivos equivalentes por reglas | SQL / Python |
+| API | Expone riesgo y sustitutivos | FastAPI |
+| Dashboard | Semáforo de riesgo y comparador de sustitutivos | Streamlit, Plotly |
+| Entorno | Despliegue reproducible | Docker Compose |
 
-Entorno base: Python 3.11 y Docker Compose.
+Prophet, Qdrant/embeddings y PySpark forman parte de la ampliación (ver Alcance). Entorno base: Python 3.11.
 
 ## Datos
 
-- **Fuente principal:** API REST de AEMPS CIMA (medicamentos, códigos ATC y problemas de suministro). Datos públicos y sin datos personales.
-- **Datos sintéticos:** generador propio en Python para simular ventas por farmacia.
-- **Alternativas en estudio:** snapshots locales de CIMA como plan B y fuentes públicas de consumo farmacéutico.
+- **API REST de AEMPS CIMA:** medicamentos, códigos ATC, fichas técnicas y problemas de suministro. Públicos, sin datos personales.
+- **Facturación de recetas del SNS (Ministerio de Sanidad):** datos públicos y agregados, como proxy de demanda. Granularidad por verificar.
+- **Generador sintético (Faker + NumPy):** ventas por farmacia. Solo valida el pipeline, el dashboard y el volumen, no la capacidad predictiva.
 
-<!-- TODO: documentar condiciones de reutilización y límites de la API de CIMA. -->
+**Etiqueta:** se considera desabastecimiento cuando existe un problema de suministro activo para el medicamento en los 30 días posteriores a la fecha de referencia (sujeto a lo que devuelva CIMA).
+
+<!-- TODO: documentar condiciones de reutilización y límites de la API de CIMA y del Ministerio (semana 1). -->
 
 Los datasets **no se versionan** en el repositorio (`data/` está en `.gitignore`).
 
 ## Equipo
 
-| Rol | Responsable | Apoyo |
-|---|---|---|
-| Data Engineer | Alejandro Ronda | Francisco Antonio Tortosa |
-| ML Engineer | Francisco Antonio Tortosa | Alejandro Ronda |
-| Backend y MLOps | Alejandro Ronda | Francisco Antonio Tortosa |
-| BI y DataViz | Francisco Antonio Tortosa | Alejandro Ronda |
+| Rol | Responsable | Apoyo en | Foco |
+|---|---|---|---|
+| Data | Alejandro Ronda  | ML | Ingesta, PostgreSQL, Airflow, EDA, recomendador |
+| ML | Francisco Antonio Tortosa | Data | Variables, etiqueta, modelos y evaluación |
+| Platform | Alejandro Ronda  | BI | API, Docker Compose, tests, gestión de PR |
+| BI | Francisco Antonio Tortosa | Platform | Dashboard, KPIs, documentación |
 
 ## Organización del repositorio
 
