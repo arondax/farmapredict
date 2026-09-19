@@ -57,9 +57,9 @@ Los datasets **no se versionan** en el repositorio (`data/` está en `.gitignore
 | Rol | Responsable | Apoyo |
 |---|---|---|
 | Data Engineer | Alejandro Ronda | Francisco Antonio Tortosa |
-| ML Engineer | Alejandro Ronda | Francisco Antonio Tortosa |
+| ML Engineer | Francisco Antonio Tortosa | Alejandro Ronda |
 | Backend y MLOps | Alejandro Ronda | Francisco Antonio Tortosa |
-| BI y DataViz | Alejandro Ronda | Francisco Antonio Tortosa |
+| BI y DataViz | Francisco Antonio Tortosa | Alejandro Ronda |
 
 ## Organización del repositorio
 
