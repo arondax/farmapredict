@@ -84,7 +84,7 @@ Los datasets **no se versionan** en el repositorio (`data/` está en `.gitignore
 | Data | Alejandro Ronda  | ML | Ingesta, PostgreSQL, Airflow, EDA, recomendador |
 | ML | Francisco Antonio Tortosa | Data | Variables, etiqueta, modelos y evaluación |
 | Platform | Alejandro Ronda  | BI | API, Docker Compose, tests, gestión de PR |
-| BI | Francisco Antonio Tortosa | Platform | Dashboard, KPIs, documentación |
+| BI | Mohamed Ayman Oumghar Seghrouchni | Platform | Dashboard, KPIs, documentación |
 
 ## Organización del repositorio
 
