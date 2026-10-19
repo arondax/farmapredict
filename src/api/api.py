@@ -14,7 +14,7 @@ from src.config import CIMA_BASE_URL
 TIMEOUT = 10  # segundos
 PAUSA_PAGINAS = 0.5  # segundos entre peticiones de páginas para no saturar la API
 
-#Funciones comodin
+#Funciones de utilidad
 
 def _get_paginado(params: dict | None = None) -> list[schemas.Medicamento]:
     """Recorre todas las páginas de /medicamentos con los filtros dados."""
@@ -36,7 +36,7 @@ def _get_paginado(params: dict | None = None) -> list[schemas.Medicamento]:
 
     return medicamentos
 
-
+#Funciones principales de la API
 
 def get_medicamentos_pagina(pagina: int = 1, params: dict | None = None) -> schemas.MedicamentosResponse:
     """Devuelve una página del listado de medicamentos de CIMA."""

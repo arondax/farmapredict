@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from src.config import DATA_RAW_DIR
 
+#Funciones de utilidad
 
 def _slug(texto: str) -> str:
     """
@@ -22,6 +23,8 @@ def _slug(texto: str) -> str:
     """
     texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-zA-Z0-9]+", "-", texto).strip("-").lower()
+
+#Funciones principales de la API
 
 def guardar_modelos(modelos: BaseModel | Sequence[BaseModel], nombre: str, subcarpeta: str = "cima") -> str:
     """
