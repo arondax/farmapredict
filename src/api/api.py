@@ -57,11 +57,31 @@ def get_medicamentos_nombre(nombre: str) -> list[schemas.Medicamento]:
     return _get_paginado({"nombre": nombre})
 
 if __name__ == "__main__":
-    # Prueba rápida con una búsqueda pequeña antes de descargar el catálogo completo
-    meds = get_medicamentos_nombre("ibuprofeno")
-    ruta = guardar_modelos(meds, "medicamentos_ibuprofeno")
-    print(f"Guardados {len(meds)} medicamentos en {ruta}")
+    inicio = time.perf_counter()
 
+    # Total esperado según la API, para compararlo al final
+    total_esperado = get_medicamentos_pagina(1).totalFilas
+    print(f"Total esperado según CIMA: {total_esperado}")
+
+    meds = get_todos_medicamentos()
+    duracion = time.perf_counter() - inicio
+
+    ruta = guardar_modelos(meds, "medicamentos_todos")
+
+    # --- Comprobaciones ---
+    nregistros = [m.nregistro for m in meds]
+    unicos = len(set(nregistros))
+    duplicados = len(nregistros) - unicos
+
+    print(f"\nDescargados: {len(meds)} / {total_esperado}")
+    print(f"nregistro únicos: {unicos} (duplicados: {duplicados})")
+    print(f"Tiempo: {duracion:.1f} s")
+    print(f"Guardado en: {ruta}")
+
+    if len(meds) != total_esperado:
+        print("AVISO: el número descargado no coincide con totalFilas")
+    if duplicados:
+        print("AVISO: hay nregistro duplicados; revisar la paginación")
 
 
 
