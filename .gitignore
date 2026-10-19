@@ -1,2 +1,3 @@
-data/
+#TODO añadir la carpeta de data al ignore si es necesario
+
 .env

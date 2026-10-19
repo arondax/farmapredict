@@ -9,4 +9,7 @@ import os
 #   CIMA_BASE_URL = os.getenv("CIMA_BASE_URL", "https://cima.aemps.es/cima/rest")
 # y añadir `# CIMA_BASE_URL=...` comentada en .env.example.
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+DATA_RAW_DIR = os.path.join(BASE_DIR, "data", "raw")
 CIMA_BASE_URL = "https://cima.aemps.es/cima/rest"
