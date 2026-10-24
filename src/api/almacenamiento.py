@@ -9,7 +9,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from src.config import DATA_RAW_DIR
+from src.config import *
 
 #Funciones de utilidad
 
@@ -51,3 +51,10 @@ def guardar_modelos(modelos: BaseModel | Sequence[BaseModel], nombre: str, subca
         json.dump(datos, f, ensure_ascii=False, indent=2)
     
     return ruta
+
+def guardar_csv(df: DataFrame, nombre: str, sep: str = ";", encoding: str = "utf-8")-> None:
+    carpeta = os.path.join(DATA_PROCESSED_DIR)
+    if carpeta:
+        os.makedirs(carpeta, exist_ok=True)
+    ruta = os.path.join(carpeta, f"{_slug(nombre)}.csv")
+    df.to_csv(ruta, sep=sep, encoding=encoding, index=False)
