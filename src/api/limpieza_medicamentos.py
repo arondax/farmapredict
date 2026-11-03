@@ -1,19 +1,38 @@
+from datetime import datetime
 import os
 import pandas as pd
 
-# Obtener la ruta de la carpeta donde se encuentra este archivo .py
-DIRECTORIO_ACTUAL = os.path.dirname(os.path.abspath(__file__))
-RAW_PATH = os.path.join(DIRECTORIO_ACTUAL, "medicamentos-todos.csv")
+from src.api.almacenamiento import guardar_csv
+from src.config import *
 
-# Ingesta del archivo
-df = pd.read_csv(RAW_PATH, sep=";", dtype=str)
-OUTPUT_PATH = "medicamentos_limpios.csv"
+# TODO (pendiente tras la revisión del 03/11/2026):
+#
+# Datos / recomendador
+# - Añadir "dosis_norm" a COLUMNAS_NORM: mayúsculas y sin espacios junto a "/"
+#   (1.073 dosis tipo "600 mg/ 300 mg" vs "600 mg/300 mg" en el snapshot 20261019).
+# - Si la dosis contiene "REVISAR" (marcador interno de CIMA, 35 casos), dejar
+#   dosis_norm a nulo y contarlos en el print de limpiar_medicamentos.
+# - Fechas de CIMA: son medianoche hora de Madrid guardadas en UTC (el 57 % cae
+#   en el día anterior). Convertir con .dt.tz_convert("Europe/Madrid") donde se
+#   muestren (dashboard/API); para features no afecta.
+#
+# Repo / PR
+# - .gitignore: excluir data/** (con !data/**/.gitkeep), __pycache__/ y *.pyc.
+# - README: cómo ejecutar (python -m src.main) y qué va en raw/processed/cleaned.
+# - Test PyTest de limpiar_medicamentos: duplicado, nregistro nulo y booleano en texto.
+#
+# Otros módulos
+# - transformaciones.py: quitar el print por medicamento y corregir
+#   med.get("formaFarmaceuticaSimplificada" or {}) -> (med.get(...) or {}).get("nombre").
+# - almacenamiento.guardar_modelos: generar el timestamp en UTC (ahora usa la hora
+#   local, por eso ZONA_SNAPSHOT = "Europe/Madrid").
 
-print("🔍 Cargando medicamentos-todos.csv...")
-df = pd.read_csv(RAW_PATH, sep=";", dtype=str)
 
-# 1. Renombrar y estandarizar columnas para FarmaPredict
-mapa = {
+
+
+
+#Columnas que se van a extraer del dataset original
+MAPA_COLUMNAS = {
     "nregistro": "nregistro",
     "nombre": "nombre_medicamento",
     "vtm": "principio_activo",
@@ -29,121 +48,143 @@ mapa = {
     "fecha_aut": "fecha_autorizacion",
     "fecha_rev": "fecha_revision",
 }
-df = df.rename(columns=mapa)
 
-# 2. Reordenar columnas en bloque lógico
-orden = [
-    "nregistro",
-    "nombre_medicamento",
-    "principio_activo",
-    "dosis",
-    "forma_farmaceutica",
-    "via_administracion",
-    "laboratorio",
-    "condiciones_prescripcion",
-    "es_comercializado",
-    "requiere_receta",
-    "es_generico",
-    "problema_suministro",
-    "fecha_autorizacion",
-    "fecha_revision",
-]
-df = df[orden]
+COLUMNAS_FECHA = ["fecha_autorizacion", "fecha_revision"]
 
-# 3. Limpiar espacios y pasar a mayúsculas
-for col in df.columns:
-  df[col] = df[col].astype(str).str.strip().replace(["nan", "None", ""], None)
-
-df["principio_activo"] = df["principio_activo"].str.upper()
-df["forma_farmaceutica"] = df["forma_farmaceutica"].str.upper()
-
-# 4. Eliminar duplicados por nregistro
-df = df.drop_duplicates(subset=["nregistro"])
-
-# 5. Guardar el resultado ordenado
-df.to_csv(OUTPUT_PATH, index=False, sep=";", encoding="utf-8")
-print(
-    f"✅ ¡Hecho! Archivo guardado como '{OUTPUT_PATH}' con {len(df)} registros."
-)
-
-import unicodedata
-import os
-import pandas as pd
-
-# 1. Cargar el dataset que acabas de ordenar
-df = pd.read_csv("medicamentos_limpios.csv", sep=";", dtype=str)
-
-print("🛡️ Sanitizando datos para compatibilidad total con la API REST...")
-
-# Función para quitar tildes de textos de búsqueda
-def quitar_tilde(texto):
-  if not isinstance(texto, str):
-    return ""
-  return "".join(
-      c
-      for c in unicodedata.normalize("NFD", texto)
-      if unicodedata.category(c) != "Mn"
-  )
-
-
-# --- PASO A: Limpieza de caracteres invisibles y saltos de línea ---
-columnas_texto = df.select_dtypes(include="object").columns
-for col in columnas_texto:
-  df[col] = (
-      df[col]
-      .astype(str)
-      .str.replace(r"[\r\n\t]", " ", regex=True)  # Elimina saltos de línea
-      .str.strip()  # Elimina espacios al inicio y final
-      .str.replace(r"\s+", " ", regex=True)
-  )  # Elimina espacios dobles
-
-# --- PASO B: Control de ceros a la izquierda en identificadores ---
-if "nregistro" in df.columns:
-  df["nregistro"] = df["nregistro"].astype(str).str.zfill(6)
-
-# --- PASO C: Normalización canónica para el recomendador de sustitutivos ---
-if "principio_activo" in df.columns:
-  df["principio_activo_norm"] = (
-      df["principio_activo"].apply(quitar_tilde).str.upper()
-  )
-
-if "forma_farmaceutica" in df.columns:
-  df["forma_farmaceutica_norm"] = (
-      df["forma_farmaceutica"].apply(quitar_tilde).str.upper()
-  )
-
-# --- PASO D: Conversión estricta de booleanos ---
-cols_bool = [
+COLUMNAS_BOOL = [
     "es_comercializado",
     "requiere_receta",
     "es_generico",
     "problema_suministro",
 ]
-for col in cols_bool:
-  if col in df.columns:
-    df[col] = (
-        df[col]
-        .astype(str)
-        .str.lower()
-        .map({
-            "true": "True",
-            "false": "False",
-            "1": "True",
-            "0": "False",
-            "si": "True",
-            "no": "False",
-        })
+
+COLUMNAS_TEXTO = [c for c in MAPA_COLUMNAS.values() if c not in COLUMNAS_FECHA + COLUMNAS_BOOL]
+
+MAPA_BOOL = {"true": True, "false": False, "1": True, "0": False}
+
+# columna origen -> columna normalizada para el recomendador
+COLUMNAS_NORM = {
+    "principio_activo": "principio_activo_norm",
+    "forma_farmaceutica": "forma_farmaceutica_norm",
+}
+#Funciones auxiliares
+
+def _normalizar_clave(serie: pd.Series) -> pd.Series:
+    """
+    Normaliza una serie de texto para crear una clave canónica.
+    Convierte a mayúsculas, elimina acentos y caracteres especiales.
+
+    Args:
+        serie (pd.Series): Serie de texto a normalizar.
+    Returns:
+        pd.Series: Serie normalizada.
+    """
+    return (
+    serie
+    .str.normalize("NFD")
+    .str.replace(r"[\u0300-\u036f]", "", regex=True)
+    .str.upper()
     )
+     
+def _renombrar_y_ordenar(df) -> pd.DataFrame:
+    """
+    Renombra las columnas del DataFrame según el mapa de columnas y las ordena.
 
-# --- PASO E: Sanitización final de nulos para JSON (Evitar error 500) ---
-# Reemplazamos las representaciones de nulos por cadena vacía
-df = df.fillna("").replace(["nan", "NaN", "None", "<NA>"], "")
+    Args:
+        df (pd.DataFrame): DataFrame original.
+    Returns:
+        pd.DataFrame: DataFrame con columnas renombradas y ordenadas.
+    """
+    faltan = set(MAPA_COLUMNAS) - set(df.columns)
+    if faltan:
+      raise ValueError(f"Faltan columnas en la entrada: {sorted(faltan)}")
+    return df.rename(columns=MAPA_COLUMNAS)[list(MAPA_COLUMNAS.values())]
 
-# --- PASO F: Guardar resultado final para la BD / API ---
-OUTPUT_API_PATH = "medicamentos_preparados_api.csv"
-df.to_csv(OUTPUT_API_PATH, index=False, sep=";", encoding="utf-8")
+def _limpiar_texto(df) -> pd.DataFrame:
+    """
+    Limpia los campos de texto del DataFrame eliminando saltos de línea, tabulaciones y espacios extra.
 
-print(
-    f"✅ ¡Completado! CSV sanitizado listo para la API guardado como:"
-    f" '{OUTPUT_API_PATH}'"
-)
+    Args:
+        df (pd.DataFrame): DataFrame original.
+    Returns:
+        pd.DataFrame: DataFrame con campos de texto limpios.
+    """
+    df = df.copy()
+    for col in COLUMNAS_TEXTO:
+        df[col] = (
+            df[col]
+            .astype("string")
+            .str.replace(r"[\r\n\t]", " ", regex=True)  # Elimina saltos de línea y tabulaciones
+            .str.replace(r"\s+", " ", regex=True)  # Elimina espacios dobles
+            .str.strip()  # Elimina espacios al inicio y final
+        )
+    return df
+
+def _tipar_columnas(df) -> pd.DataFrame:
+    """
+    Tipifica las columnas del DataFrame según su tipo esperado.
+
+    Args:
+        df (pd.DataFrame): DataFrame original.
+    Returns:
+        pd.DataFrame: DataFrame con columnas tipadas.
+    """
+    # Tipar columnas de fecha
+    df = df.copy()
+    for col in COLUMNAS_FECHA:
+        df[col] = pd.to_datetime(df[col], utc=True)
+    for col in COLUMNAS_BOOL:
+        df[col] = df[col].astype("string").str.lower().map(MAPA_BOOL).astype("boolean")
+    return df
+
+def _agregar_claves_norm(df: pd.DataFrame) -> pd.DataFrame:
+    """Añade las columnas *_norm que usará el recomendador de sustitutivos."""
+    df = df.copy()
+    for origen, destino in COLUMNAS_NORM.items():
+        df[destino] = _normalizar_clave(df[origen])
+    return df
+
+ZONA_SNAPSHOT = "Europe/Madrid"
+CLAVE_SNAPSHOT = ["nregistro", "fecha_snapshot"]
+
+#Funcion principal de limpieza de medicamentos
+def limpiar_medicamentos(df: pd.DataFrame, fecha_snapshot: datetime) -> pd.DataFrame:
+    """
+    Limpia y tipa el catálogo de medicamentos de un snapshot de CIMA.
+
+    No lee ni escribe archivos: recibe el DataFrame de transformaciones y
+    devuelve el DataFrame limpio, listo para guardar o cargar en la BD.
+
+    Args:
+        df: DataFrame con las columnas originales de CIMA (salida de extraer_medicamentos).
+        fecha_snapshot: Momento de descarga del snapshot (timestamp del JSON raw).
+            Si no trae zona horaria, se interpreta como hora de Madrid.
+
+    Returns:
+        DataFrame limpio con la columna fecha_snapshot (UTC) y sin duplicados
+        por (nregistro, fecha_snapshot).
+    """
+    df = _renombrar_y_ordenar(df)
+    df = _limpiar_texto(df)
+    df = _tipar_columnas(df)
+    df = _agregar_claves_norm(df)
+
+    ts = pd.Timestamp(fecha_snapshot)
+    if ts.tzinfo is None:
+        ts = ts.tz_localize(ZONA_SNAPSHOT)
+    df["fecha_snapshot"] = ts.tz_convert("UTC")
+
+    # Validaciones: clave obligatoria y duplicados (Fase 1, 8.1)
+    n_inicial = len(df)
+    df = df.dropna(subset=["nregistro"])
+    sin_clave = n_inicial - len(df)
+
+    df = df.drop_duplicates(subset=CLAVE_SNAPSHOT)
+    duplicados = n_inicial - sin_clave - len(df)
+
+    print(
+        f"Limpieza: {n_inicial} filas de entrada | {sin_clave} sin nregistro | "
+        f"{duplicados} duplicadas | {len(df)} finales"
+    )
+    return df.reset_index(drop=True)
+

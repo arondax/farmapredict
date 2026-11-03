@@ -29,7 +29,7 @@ def extraer_medicamentos(registros: list[dict]) -> pd.DataFrame:
     for med in registros:
         #Campos basicos
         fila = {campo: med.get(campo) for campo in CAMPOS_BASICOS}
-        print(f"Procesando medicamento: {fila.get('nombre')} (nregistro: {fila.get('nregistro')})")
+        #print(f"Procesando medicamento: {fila.get('nombre')} (nregistro: {fila.get('nregistro')})")
 
         #Campos compuestos
         fila ["forma_farmaceutica"] = med.get("formaFarmaceuticaSimplificada" or {}).get("nombre")
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         print(df.head().to_string())
 
         assert len(df) == len(registros), "Se han perdido o duplicado filas"
-
-        guardar_csv(df, "medicamentos-todos", sep=";", encoding="utf-8")
+        #revisar
+        guardar_csv(df, carpeta=DATA_PROCESSED_DIR, nombre="medicamentos-todos", sep=";", encoding="utf-8")
 
     print(f"\nOK: {len(archivos)} archivo(s) procesados")

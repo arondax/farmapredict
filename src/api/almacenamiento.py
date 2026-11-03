@@ -7,6 +7,7 @@ import unicodedata
 from collections.abc import Sequence
 from datetime import datetime
 
+from pandas import DataFrame
 from pydantic import BaseModel
 
 from src.config import *
@@ -52,9 +53,34 @@ def guardar_modelos(modelos: BaseModel | Sequence[BaseModel], nombre: str, subca
     
     return ruta
 
-def guardar_csv(df: DataFrame, nombre: str, sep: str = ";", encoding: str = "utf-8")-> None:
-    carpeta = os.path.join(DATA_PROCESSED_DIR)
-    if carpeta:
-        os.makedirs(carpeta, exist_ok=True)
-    ruta = os.path.join(carpeta, f"{_slug(nombre)}.csv")
+def guardar_csv(
+    df: DataFrame,
+    nombre: str,
+    carpeta: str = DATA_PROCESSED_DIR,
+    timestamp: str | None = None,
+    sep: str = ";",
+    encoding: str = "utf-8",
+) -> str:
+    """
+    Guarda un DataFrame como CSV dentro de una carpeta de data/.
+
+    Args:
+        df: DataFrame a guardar.
+        nombre: Nombre base del archivo (se pasa por _slug).
+        carpeta: Carpeta destino (DATA_PROCESSED_DIR, DATA_CLEANED_DIR...).
+        timestamp: Sufijo opcional "YYYYmmdd_HHMMSS", igual que en guardar_modelos.
+        sep: Separador del CSV.
+        encoding: Codificación del archivo.
+
+    Returns:
+        Ruta absoluta del archivo guardado.
+    """
+    os.makedirs(carpeta, exist_ok=True)
+
+    nombre_archivo = _slug(nombre)
+    if timestamp:
+        nombre_archivo = f"{nombre_archivo}_{timestamp}"
+
+    ruta = os.path.join(carpeta, f"{nombre_archivo}.csv")
     df.to_csv(ruta, sep=sep, encoding=encoding, index=False)
+    return ruta
