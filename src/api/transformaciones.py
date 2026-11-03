@@ -51,31 +51,3 @@ def extraer_medicamentos(registros: list[dict]) -> pd.DataFrame:
         df[col] = pd.to_datetime(df[col], unit="ms", utc=True)
 
     return df
-
-
-if __name__ == "__main__":
-
-    patron = os.path.join(DATA_RAW_DIR,"cima", "medicamentos-todos_*")
-    archivos = sorted(glob.glob(patron))
-
-    if not archivos:
-        raise SystemExit(f"No se encontraron archivos con el patrón: {patron}")
-
-    for ruta in archivos:
-        with open(ruta, encoding="utf-8") as f:
-            contenido = json.load(f)
-
-        # Acepta tanto la lista directa como la respuesta paginada de CIMA
-        registros = contenido["resultados"] if isinstance(contenido, dict) else contenido
-
-        df = extraer_medicamentos(registros)
-
-        print(f"\n=== {os.path.basename(ruta)} ===")
-        print(f"Registros en JSON: {len(registros)} | Filas en DataFrame: {len(df)}")
-        print(df.head().to_string())
-
-        assert len(df) == len(registros), "Se han perdido o duplicado filas"
-        #revisar
-        guardar_csv(df, carpeta=DATA_PROCESSED_DIR, nombre="medicamentos-todos", sep=";", encoding="utf-8")
-
-    print(f"\nOK: {len(archivos)} archivo(s) procesados")
