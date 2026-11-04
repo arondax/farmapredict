@@ -1,0 +1,67 @@
+(.venv) PS E:\Mi Equipo\TFM\farmapredict> python -m src.exploracion_psuministro
+psuministro | página 1: 200/920
+psuministro | página 2: 400/920
+psuministro | página 3: 600/920
+psuministro | página 4: 800/920
+psuministro | página 5: 920/920
+Guardado en: E:\Mi Equipo\TFM\farmapredict\data\raw\cima\psuministro_20261104_171429.json
+
+Total registros: 920
+Campos (frecuencia): {'cn': 920, 'nombre': 920, 'tipoProblemaSuministro': 920, 'fini': 920, 'activo': 920, 'observ': 920, 'ffin': 651}
+activo: {True: 920}
+fini: de 2016-05-05 a 2026-11-03
+Incidencias por año de inicio: {2016: 3, 2019: 2, 2020: 3, 2021: 4, 2022: 6, 2023: 27, 2024: 41, 2025: 143, 2026: 691}
+ffin pasada (cerradas): 0 | ffin futura: 651 | sin ffin: 269
+CN únicos: 920 | CN con >1 incidencia: 0
+
+Ejemplo:
+{
+  "cn": "917070",
+  "nombre": "BECLOFORTE 250 microgramos/inhalación SOLUCION PARA INHALACION EN ENVASE A PRESION , 1 cartucho de 200 dosis",
+  "tipoProblemaSuministro": 5,
+  "fini": 1793746800000,
+  "activo": true,
+  "observ": "Existe/n otro/s medicamento/s con el mismo principio activo y para la misma vía de administración."
+}
+(.venv) PS E:\Mi Equipo\TFM\farmapredict> 
+
+
+
+CONCLUSIONES:
+
+La API no tiene histórico: devuelve una foto del estado actual.
+
+-activo: True en los 920 registros y 0 incidencias cerradas.
+-Una sola incidencia por CN. Si un medicamento tuvo problemas, se recuperó y volvió a tenerlos, solo vemos el episodio actual.
+-ffin es la fecha prevista de fin (las 651 que la traen son futuras). Los 269 sin ffin son problemas sin fecha estimada de resolución.
+
+La distribución por año es sesgo de supervivencia, no una tendencia. Que haya 3 incidencias de 2016 y 691 de 2026 no significa que los problemas se hayan multiplicado. Significa que las de 2016 que siguen activas son las crónicas, y que todas las cortas que empezaron y terminaron antes de hoy han desaparecido. No se puede usar como gráfico en la memoria como evolucion de los desabastecimientos. LA AEMPS publica datos semeestrales de los desabastecimientos, solo sirven como contexto
+
+#TODO revisar lo de abajo y quitarlo
+
+Qué nos dice la salida
+
+La API no tiene histórico: devuelve una foto del estado actual.
+
+activo: True en los 920 registros y 0 incidencias cerradas.
+Una sola incidencia por CN. Si un medicamento tuvo problemas, se recuperó y volvió a tenerlos, solo vemos el episodio actual.
+ffin es la fecha prevista de fin (las 651 que la traen son futuras). Los 269 sin ffin son problemas sin fecha estimada de resolución.
+
+La distribución por año es sesgo de supervivencia, no una tendencia. Que haya 3 incidencias de 2016 y 691 de 2026 no significa que los problemas se hayan multiplicado. Significa que las de 2016 que siguen activas son las crónicas, y que todas las cortas que empezaron y terminaron antes de hoy han desaparecido. No uséis este gráfico en la memoria como “evolución de los desabastecimientos”. Para la evolución real, la AEMPS publica informes semestrales de problemas de suministro. Son datos agregados, que no sirven como etiquetas, pero sí como contexto y para contrastar vuestras cifras.
+
+Ojo con las fechas. El fini del ejemplo (1793746800000) es 2026-11-03 23:00 UTC, es decir, 4 de noviembre a las 00:00 en Madrid. Es lo mismo que pasaba con las fechas de medicamentos. Aquí sí importa, porque la etiqueta trabaja con días: al convertir hay que usar tz_convert("Europe/Madrid") antes de .date(). Si no, todas las incidencias se adelantan un día.
+
+tipoProblemaSuministro viene como un código numérico (el ejemplo tiene un 5). Hay que sacar la tabla de códigos de la documentación de CIMA y no adivinarla. Puede ser una feature útil, o incluso servir para filtrar si solo os interesan los problemas con impacto en el paciente.
+
+Consecuencias para el diseño
+
+1. La etiqueta sale de vuestros snapshots, como ya anticipaba el README. La tabla de incidencias se construye comparando snapshots consecutivos:
+
+Aparece un (cn, fini) nuevo → empieza una incidencia (la fecha exacta la da fini).
+Un (cn, fini) desaparece → termina (fecha observada = primer snapshot en el que ya no está).
+
+Esto tiene una consecuencia útil: un día sin snapshot no es grave. Las altas no se pierden, porque fini viene en el dato. Solo se pierden las incidencias que empiezan y terminan dentro del hueco, y la fecha de fin queda imprecisa en ese intervalo. Aun así, cuantos menos huecos, mejor.
+
+2. Se puede arrancar ya con datos sesgados. Con el snapshot de hoy ya tenéis el fini de 691 incidencias de 2026. Para fechas de corte recientes (por ejemplo, septiembre y octubre), positivo = CN con fini en (t, t+30]. El sesgo es que faltan las incidencias que empezaron en esa ventana y ya terminaron, así que aparecen falsos negativos. Cuanto más atrás esté t, peor. Sirve para montar el pipeline completo y la línea base sin esperar, siempre que el sesgo se documente. Las features del catálogo para esos cortes salen del snapshot del 19/10, con una ligera fuga temporal que también hay que documentar.
+
+3. Las cuentas de calendario mandan. Con horizonte de 30 días, una fecha de corte t solo tiene etiqueta completa en t+30. Si los snapshots empiezan hoy, la primera etiqueta limpia es del 4 de diciembre. Para un set de test temporal mínimamente serio harían falta varias semanas más.

@@ -1,13 +1,14 @@
 #Clase enfocada en la API de CIMA (AEMPS) 
 # para obtener información sobre medicamentos y productos sanitarios.
 
-
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 import time
 
 import requests
-from urllib3 import Retry
-
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from . import esquemas_respuesta as schemas
 from .almacenamiento import guardar_modelos
 from src.config import CIMA_BASE_URL
@@ -31,7 +32,7 @@ def _cerrar_sesion() -> requests.Session:
 
 _SESION = _cerrar_sesion()
 
-def _get_json(endpont: str, params: dict | None = None):
+def _get_json(endpoint: str, params: dict | None = None):
     """GET a CIMA y devuelve el JSON tal cual, sin validar."""
     url = f"{CIMA_BASE_URL}/{endpoint.lstrip('/')}"
     response = _SESION.get(url, params=params, timeout=TIMEOUT)
