@@ -2,14 +2,16 @@ import glob
 import json
 import os
 import re
+import time
 from datetime import datetime
-from turtle import pd
+
+import pandas as pd
 
 from src.config import DATA_PROCESSED_DIR, DATA_RAW_DIR, DATA_CLEANED_DIR
+from src.api.api import get_medicamentos_pagina, get_todos_medicamentos
+from src.api.almacenamiento import guardar_csv, guardar_modelos
 from src.api.transformaciones import extraer_medicamentos
 from src.api.limpieza_medicamentos import limpiar_medicamentos
-from src.api.almacenamiento import guardar_csv
-from src.api.api import *
 
 PATRON_RAW = os.path.join(DATA_RAW_DIR, "cima", "medicamentos-todos_*.json")
 PATRON_TS = re.compile(r"_(\d{8}_\d{6})\.json$")
