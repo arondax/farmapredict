@@ -14,7 +14,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-DATA_RAW_DIR = os.path.join(DATA_DIR, "raw")
+DATA_RAW_DIR = os.getenv("FARMAPREDICT_RAW_DIR", os.path.join(DATA_DIR, "raw"))
 CIMA_BASE_URL = "https://cima.aemps.es/cima/rest"
 DATA_PROCESSED_DIR = os.path.join(DATA_DIR, "processed")
 DATA_CLEANED_DIR = os.path.join(DATA_DIR, "cleaned")
