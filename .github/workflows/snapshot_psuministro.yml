@@ -1,0 +1,57 @@
+
+name: Snapshot psuministro
+
+on:
+  #schedule:
+  #  - cron: "17 6 * * *"   # 07:17 / 08:17 Madrid. Minuto no redondo: el :00 es la hora más saturada
+  #  - cron: "17 18 * * *"  # reintento por si la primera se retrasa o se pierde; idempotente
+  workflow_dispatch:       # ejecución manual: la primera prueba se hace así
+
+permissions:
+  contents: write          # para hacer push a la rama snapshots
+
+concurrency:
+  group: snapshot-psuministro
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TZ: Europe/Madrid
+      FARMAPREDICT_RAW_DIR: ${{ github.workspace }}/snapshots/raw
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Checkout rama snapshots
+        uses: actions/checkout@v4
+        with:
+          ref: snapshots
+          path: snapshots
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Dependencias
+        run: pip install -r requirements.txt
+
+      - name: Descargar snapshot
+        run: python -m src.snapshot_diario
+
+      - name: Commit y push
+        working-directory: snapshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898213+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Sin cambios (ya había snapshot de hoy)"
+            exit 0
+          fi
+          git commit -m "snapshot psuministro $(date +%F)"
+          git push
