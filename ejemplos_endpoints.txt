@@ -1,28 +1,52 @@
-Reglas de formato:
-
-cn (código nacional, la caja concreta que se vende) siempre como texto, nunca como número.
-Fechas en formato YYYY-MM-DD.
-Si el CN no existe, el backend devuelve error 404.
+REGLAS DE FORMATO
+- cn (código nacional, la caja concreta que se vende) siempre como texto, nunca como número.
+- Fechas en formato YYYY-MM-DD (hora de Madrid).
+- Si el CN no existe, el backend devuelve 404.
+- Documentación interactiva con los esquemas: http://127.0.0.1:8000/docs
 
 GET /health
-→ {"status": "ok", "datos": {"presentaciones": "2026-11-05", "psuministro": "2026-11-05"}}
+→ {"status": "ok",
+   "datos": {"presentaciones": "2026-11-05", "psuministro": "2026-11-05"},
+   "modelo_disponible": false}
 
 GET /medicamentos?q=ibuprofeno&limite=20
-→ [{"cn": "686580", "nombre": "...", "laboratorio": "...", "comercializado": true, "problema_activo": false}]
+   q: mínimo 3 caracteres, sin distinguir tildes ni mayúsculas (si no → 422)
+   limite: entre 1 y 100 (por defecto 20)
+   Orden: primero los comercializados y los que empiezan por el texto buscado.
+→ [{"cn": "686580", "nombre": "...", "laboratorio": "...",
+    "comercializado": true, "problema_activo": false}]
 
 GET /medicamentos/{cn}
-→ {"cn": "917070", "nregistro": "...", "nombre": "...", "laboratorio": "...",
-   "dcp": {"id": "...", "nombre": "Beclometasona 250 microgramos inhalación"},
+→ {"cn": "917070", "nregistro": "59377", "nombre": "...", "laboratorio": "...",
+   "dcp": {"id": "770276003", "nombre": "Beclometasona 250 microgramos/dosis inhalación pulmonar"},
+   "principio_activo": "beclometasona",
    "comercializado": true,
-   "problema_suministro": null | {"tipo": 5, "descripcion": "...", "fecha_inicio": "2026-11-04",
-                                  "fecha_fin_prevista": null, "observaciones": "..."}}
+   "problema_suministro": null | {"tipo": 5,
+                                  "descripcion": "Existen otros medicamentos con el mismo principio activo y vía de administración",
+                                  "fecha_inicio": "2026-11-04",
+                                  "fecha_fin_prevista": null,
+                                  "observaciones": "..."}}
 
 GET /medicamentos/{cn}/sustitutos
-→ {"cn": "917070", "dcp": {...}, "criterio": "mismo DCP, comercializado, sin problema activo",
-   "sustitutos": [{"cn": "...", "nombre": "...", "laboratorio": "..."}]}
+   sustitutos   = equivalentes: mismo DCP (principio activo, dosis y forma), comercializados, sin problema activo
+   alternativas = mismo principio activo y misma vía, con otra dosis o forma.
+                  Requieren valoración del farmacéutico o del médico: mostrarlas separadas, con su aviso.
+→ {"cn": "917070",
+   "dcp": {"id": "770276003", "nombre": "Beclometasona 250 microgramos/dosis inhalación pulmonar"},
+   "vias": ["VÍA INHALATORIA"],
+   "sustitutos": [],
+   "criterio_sustitutos": "mismo DCP (principio activo, dosis y forma), comercializado, sin problema de suministro activo",
+   "alternativas": [{"cn": "...", "nombre": "BECLO-ASMA 100 MICROGRAMOS/PULSACION ...", "laboratorio": "...",
+                     "dcp": "Beclometasona 100 microgramos/dosis inhalación pulmonar"}],
+   "criterio_alternativas": "mismo principio activo y misma vía de administración, con otra dosis o forma; ..."}
 
 GET /medicamentos/{cn}/riesgo
 → {"cn": "917070", "riesgo": 0.12, "nivel": "bajo|medio|alto", "horizonte_dias": 30,
-   "modelo": "linea_base_v0"}
+   "modelo": "regresion_logistica_v0", "fecha_calculo": "2026-11-09"}
+   503 {"detail": "Modelo de riesgo no disponible todavía"}  → el modelo aún no ha generado el fichero
+   404 {"detail": "Sin predicción de riesgo para este CN"}   → el CN existe pero no tiene predicción
 
-CN inexistente → 404 {"detail": "CN no encontrado"}
+ERRORES COMUNES
+404 {"detail": "CN no encontrado"}  → el CN no existe en el catálogo
+422                                  → parámetros no válidos (por ejemplo, q con menos de 3 caracteres)
+asdas
