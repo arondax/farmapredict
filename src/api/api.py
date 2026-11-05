@@ -1,8 +1,6 @@
 #Clase enfocada en la API de CIMA (AEMPS) 
 # para obtener información sobre medicamentos y productos sanitarios.
 
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 import time
 
