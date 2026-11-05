@@ -103,6 +103,17 @@ def get_psuministro_raw() -> list[dict]:
     """Todas las incidencias de suministro que devuelva CIMA, sin validar."""
     return get_paginado_raw("psuministro")
 
+def get_presentaciones_raw() -> list[dict]:
+    """Catálogo completo de presentaciones (CN), sin validar."""
+    return get_paginado_raw("presentaciones")
+
+
+def get_psuministro_cn_raw(cn: str) -> dict:
+    """
+    Último episodio de suministro de un CN (activo o resuelto), o la ficha con
+    observ "Sin problemas de suministro reportados" si no ha tenido ninguno.
+    """
+    return _get_json(f"psuministro/v2/cn/{cn}")
 
 
         

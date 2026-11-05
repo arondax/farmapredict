@@ -1,0 +1,28 @@
+Reglas de formato:
+
+cn (código nacional, la caja concreta que se vende) siempre como texto, nunca como número.
+Fechas en formato YYYY-MM-DD.
+Si el CN no existe, el backend devuelve error 404.
+
+GET /health
+→ {"status": "ok", "datos": {"presentaciones": "2026-11-05", "psuministro": "2026-11-05"}}
+
+GET /medicamentos?q=ibuprofeno&limite=20
+→ [{"cn": "686580", "nombre": "...", "laboratorio": "...", "comercializado": true, "problema_activo": false}]
+
+GET /medicamentos/{cn}
+→ {"cn": "917070", "nregistro": "...", "nombre": "...", "laboratorio": "...",
+   "dcp": {"id": "...", "nombre": "Beclometasona 250 microgramos inhalación"},
+   "comercializado": true,
+   "problema_suministro": null | {"tipo": 5, "descripcion": "...", "fecha_inicio": "2026-11-04",
+                                  "fecha_fin_prevista": null, "observaciones": "..."}}
+
+GET /medicamentos/{cn}/sustitutos
+→ {"cn": "917070", "dcp": {...}, "criterio": "mismo DCP, comercializado, sin problema activo",
+   "sustitutos": [{"cn": "...", "nombre": "...", "laboratorio": "..."}]}
+
+GET /medicamentos/{cn}/riesgo
+→ {"cn": "917070", "riesgo": 0.12, "nivel": "bajo|medio|alto", "horizonte_dias": 30,
+   "modelo": "linea_base_v0"}
+
+CN inexistente → 404 {"detail": "CN no encontrado"}

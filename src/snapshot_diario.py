@@ -1,17 +1,28 @@
-"""Snapshot diario de /psuministro (raw). Idempotente: si ya hay uno de hoy, no hace nada."""
-from src.api.api import get_psuministro_raw
+"""Snapshot (raw) de endpoints paginados de CIMA. Idempotente por día.
+
+python -m src.snapshot_diario                 -> psuministro
+python -m src.snapshot_diario presentaciones
+"""
+import sys
+
+from src.api.api import get_paginado_raw
 from src.api.almacenamiento import guardar_raw, snapshot_del_dia
 
-NOMBRE = "psuministro"
+
+def snapshot(nombre: str) -> str:
+    existente = snapshot_del_dia(nombre)
+    if existente:
+        print(f"Ya existe el snapshot de hoy: {existente}")
+        return existente
+    registros = get_paginado_raw(nombre)
+    ruta = guardar_raw(registros, nombre)
+    print(f"{nombre}: {len(registros)} registros -> {ruta}")
+    return ruta
 
 
 def main() -> None:
-    existente = snapshot_del_dia(NOMBRE)
-    if existente:
-        print(f"Ya existe el snapshot de hoy: {existente}")
-        return
-    registros = get_psuministro_raw()
-    print(f"{len(registros)} registros -> {guardar_raw(registros, NOMBRE)}")
+    for nombre in sys.argv[1:] or ["psuministro"]:
+        snapshot(nombre)
 
 
 if __name__ == "__main__":

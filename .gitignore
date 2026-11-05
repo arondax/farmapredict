@@ -1,2 +1,7 @@
 #TODO añadir la carpeta de data al ignore si es necesario
 .env
+#data/ TODO para la entrega final poner en ignore la carpeta data
+__pycache__/
+*.pyc
+logs/
+.venv/
