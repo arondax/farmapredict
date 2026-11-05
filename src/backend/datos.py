@@ -98,6 +98,16 @@ def indice_por_dcp() -> dict[str, list[str]]:
             indice[p["dcp_id"]].append(cn)
     return dict(indice)
 
+@lru_cache(maxsize=1)
+def cargar_vias() -> dict[str, frozenset[str]]:
+    """nregistro -> vías de administración (de /medicamentos)."""
+    registros = _leer_json(_ultimo_snapshot("medicamentos-todos"))
+    return {
+        str(m["nregistro"]): frozenset(v["nombre"] for v in m.get("viasAdministracion") or [] if v.get("nombre"))
+        for m in registros
+        if m.get("nregistro")
+    }
+
 
 def fechas_datos() -> dict[str, str]:
     """Fecha de cada snapshot cargado (para /health)."""
@@ -106,5 +116,5 @@ def fechas_datos() -> dict[str, str]:
 
 def recargar() -> None:
     """Vacía la caché para leer los últimos snapshots sin reiniciar el servidor."""
-    for funcion in (cargar_presentaciones, cargar_problemas_activos, indice_por_dcp):
+    for funcion in (cargar_presentaciones, cargar_problemas_activos, indice_por_dcp, cargar_vias):
         funcion.cache_clear()

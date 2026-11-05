@@ -51,7 +51,11 @@ def buscar(texto: str, limite: int = 20) -> list[dict]:
         return []
     presentaciones = datos.cargar_presentaciones()
     encontrados = [presentaciones[cn] for cn, nombre in _nombres_normalizados() if consulta in nombre]
-    encontrados.sort(key=lambda p: (not p["comercializado"], p["nombre"] or ""))
+    encontrados.sort(key=lambda p: (
+    not p["comercializado"],
+    not _normalizar(p["nombre"]).startswith(consulta),
+    p["nombre"] or "",
+))
     return [_resumen(p) for p in encontrados[:limite]]
 
 
@@ -77,25 +81,51 @@ def ficha(cn: str) -> dict | None:
     }
 
 
+CRITERIO_SUSTITUTOS = "mismo DCP (principio activo, dosis y forma), comercializado, sin problema de suministro activo"
+CRITERIO_ALTERNATIVAS = (
+    "mismo principio activo y misma vía de administración, con otra dosis o forma; "
+    "comercializado y sin problema activo. Requiere valoración del farmacéutico o del médico"
+)
+
+
+def _disponible(cn: str) -> bool:
+    return datos.cargar_presentaciones()[cn]["comercializado"] and cn not in datos.cargar_problemas_activos()
+
+
 def sustitutos(cn: str) -> dict | None:
-    """Presentaciones intercambiables con `cn`, o None si el CN no existe."""
+    """Sustitutos equivalentes (mismo DCP) y alternativas a valorar (mismo principio activo y vía)."""
     presentaciones = datos.cargar_presentaciones()
     p = presentaciones.get(cn)
     if p is None:
         return None
 
-    candidatos = datos.indice_por_dcp().get(p["dcp_id"], []) if p["dcp_id"] else []
-    problemas = datos.cargar_problemas_activos()
-    validos = [
-        presentaciones[c]
-        for c in candidatos
-        if c != cn and presentaciones[c]["comercializado"] and c not in problemas
-    ]
-    validos.sort(key=lambda s: s["nombre"] or "")
+    # 1. Equivalentes: mismo DCP
+    mismo_dcp = datos.indice_por_dcp().get(p["dcp_id"], []) if p["dcp_id"] else []
+    equivalentes = [presentaciones[c] for c in mismo_dcp if c != cn and _disponible(c)]
+
+    # 2. Alternativas: mismo principio activo, alguna vía en común, otro DCP
+    vias = datos.cargar_vias()
+    vias_origen = vias.get(p["nregistro"], frozenset())
+    alternativas = []
+    if p["principio_activo"] and vias_origen:
+        alternativas = [
+            q for q in presentaciones.values()
+            if q["principio_activo"] == p["principio_activo"]
+            and q["dcp_id"] != p["dcp_id"]
+            and vias.get(q["nregistro"], frozenset()) & vias_origen
+            and _disponible(q["cn"])
+        ]
+
+    def _salida(lista: list[dict]) -> list[dict]:
+        lista = sorted(lista, key=lambda s: s["nombre"] or "")
+        return [{"cn": s["cn"], "nombre": s["nombre"], "laboratorio": s["laboratorio"], "dcp": s["dcp_nombre"]} for s in lista]
 
     return {
         "cn": cn,
         "dcp": {"id": p["dcp_id"], "nombre": p["dcp_nombre"]},
-        "criterio": CRITERIO_SUSTITUTOS,
-        "sustitutos": [{"cn": s["cn"], "nombre": s["nombre"], "laboratorio": s["laboratorio"]} for s in validos],
+        "vias": sorted(vias_origen),
+        "sustitutos": _salida(equivalentes),
+        "criterio_sustitutos": CRITERIO_SUSTITUTOS,
+        "alternativas": _salida(alternativas),
+        "criterio_alternativas": CRITERIO_ALTERNATIVAS,
     }
