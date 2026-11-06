@@ -1,8 +1,5 @@
 from datetime import datetime
-import os
 import pandas as pd
-
-from src.api.almacenamiento import guardar_csv
 from src.config import *
 
 # TODO (pendiente tras la revisión del 03/11/2026):

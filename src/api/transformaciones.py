@@ -1,9 +1,4 @@
-import os
-import glob
-import json
 import pandas as pd
-from src.api.almacenamiento import *
-from src.config import *
 CAMPOS_BASICOS = [
     "nregistro", "nombre", "labtitular", "cpresc", "dosis",
     "comerc", "receta", "generico", "psum",
@@ -32,7 +27,7 @@ def extraer_medicamentos(registros: list[dict]) -> pd.DataFrame:
         #print(f"Procesando medicamento: {fila.get('nombre')} (nregistro: {fila.get('nregistro')})")
 
         #Campos compuestos
-        fila ["forma_farmaceutica"] = med.get("formaFarmaceuticaSimplificada").get("nombre")
+        fila["forma_farmaceutica"] = (med.get("formaFarmaceuticaSimplificada") or {}).get("nombre")
         fila["vtm"] = (med.get("vtm") or {}).get("nombre")
         fila["vias"] = "|".join(v.get("nombre", "") for v in med.get("viasAdministracion") or [])
 

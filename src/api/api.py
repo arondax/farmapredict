@@ -8,7 +8,6 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from . import esquemas_respuesta as schemas
-from .almacenamiento import guardar_modelos
 from src.config import CIMA_BASE_URL
 
 TIMEOUT = 30  # segundos

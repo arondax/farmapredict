@@ -12,7 +12,7 @@ from datetime import datetime
 from pandas import DataFrame
 from pydantic import BaseModel
 
-from src.config import *
+from src.config import DATA_RAW_DIR, DATA_PROCESSED_DIR
 
 #Funciones de utilidad
 
