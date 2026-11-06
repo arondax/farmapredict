@@ -14,12 +14,10 @@ from src.config import *
 #   muestren (dashboard/API); para features no afecta.
 #
 # Repo / PR
-# - .gitignore: excluir data/** (con !data/**/.gitkeep), __pycache__/ y *.pyc.
-# - README: cómo ejecutar (python -m src.main) y qué va en raw/processed/cleaned.
+# # - README: cómo ejecutar (python -m src.main) y qué va en raw/processed/cleaned.
 # - Test PyTest de limpiar_medicamentos: duplicado, nregistro nulo y booleano en texto.
 #
 # Otros módulos
-# - transformaciones.py: quitar el print por medicamento y corregir
 #   med.get("formaFarmaceuticaSimplificada" or {}) -> (med.get(...) or {}).get("nombre").
 # - almacenamiento.guardar_modelos: generar el timestamp en UTC (ahora usa la hora
 #   local, por eso ZONA_SNAPSHOT = "Europe/Madrid").
