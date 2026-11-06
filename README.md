@@ -53,15 +53,15 @@ Los sustitutivos que recomiende el sistema son **informativos**: la decisión fi
 
 ## Arquitectura (alto nivel, provisional)
 
-| Pieza | Función | Tecnología |
+| Pieza | Diseño (Fase 1) | Implementado en NF3 |
 |---|---|---|
-| Ingesta y ETL | Descarga programada de CIMA, limpieza y carga | Apache Airflow, Python |
-| Almacenamiento | Catálogo, histórico de suministro y variables del modelo | PostgreSQL |
-| Modelo de riesgo | Clasificador a 30 días y modelos de referencia | XGBoost, regresión logística |
-| Recomendador | Sustitutivos equivalentes por reglas | SQL / Python |
-| API | Expone riesgo y sustitutivos | FastAPI |
-| Dashboard | Semáforo de riesgo y comparador de sustitutivos | Streamlit, Plotly |
-| Entorno | Despliegue reproducible | Docker Compose |
+| Ingesta | Airflow + Python | Python + **GitHub Actions con cron** (el plan B de la Fase 1). Snapshot diario de problemas de suministro en la rama `snapshots` |
+| Almacenamiento | PostgreSQL | Ficheros (raw en la rama `snapshots`, limpio en `data/cleaned/`) servidos a través de `src/backend/datos.py`. PostgreSQL, en NF4 |
+| Modelo de riesgo | XGBoost + regresión logística como baseline | Regresión logística + tasa ingenua (en desarrollo). XGBoost, en NF4 |
+| Recomendador | Reglas de equivalencia | Sustitutos por DCP + alternativas por principio activo y vía |
+| API | FastAPI | En desarrollo |
+| Dashboard | Streamlit | En desarrollo |
+| Entorno | Docker Compose | Entorno virtual de Python. Docker Compose, en NF4 |
 
 Prophet, Qdrant/embeddings y PySpark forman parte de la ampliación (ver Alcance). Entorno base: Python 3.11.
 
@@ -77,6 +77,14 @@ Prophet, Qdrant/embeddings y PySpark forman parte de la ampliación (ver Alcance
 
 Los datasets **no se versionan** en el repositorio (`data/` está en `.gitignore`).
 
+| Fichero en `snapshots` (`raw/cima/`) | Contenido |
+|---|---|
+| `psuministro_YYYYmmdd_HHMMSS.json` | Problemas de suministro activos de cada día (uno por día) |
+| `backfill_psuministro_20261105.jsonl` | Último episodio de cada CN (consultado el 05/11/2026) |
+| `presentaciones_20261105_173524.json` | Catálogo de presentaciones (CN) |
+| `medicamentos-todos_20261019_181813.json` | Catálogo de medicamentos (nregistro) |
+
+
 ## Equipo
 
 | Rol | Responsable | Apoyo en | Foco |
@@ -88,16 +96,32 @@ Los datasets **no se versionan** en el repositorio (`data/` está en `.gitignore
 
 ## Organización del repositorio
 
+
 ```text
 farmapredict/
-├── docs/          # Documentación y entregables (NF1_Presentacion_y_Viabilidad.pdf)
-├── src/           # Código fuente
-├── data/          # Datos locales (vacío en el repo, solo .gitkeep)
-├── environment/   # Configuración del entorno (Docker Compose, dependencias)
-├── README.md
-└── .gitignore
+├── .github/workflows/
+│   └── snapshot_psuministro.yml   # snapshot diario de /psuministro (cron)
+├── docs/                          # documentación, entregables y contrato de la API
+├── src/
+│   ├── config.py                  # rutas y configuración (.env)
+│   ├── main.py                    # pipeline de medicamentos: raw → cleaned
+│   ├── snapshot_diario.py         # descarga un endpoint paginado de CIMA (raw)
+│   ├── backfill_psuministro.py    # backfill del último episodio por CN (ejecutado una vez)
+│   ├── construir_incidencias.py   # genera data/cleaned/incidencias.csv
+│   ├── api/                       # cliente de CIMA y transformaciones
+│   │   ├── api.py                 # cliente HTTP con reintentos y paginación
+│   │   ├── esquemas_respuesta.py  # modelos Pydantic de las respuestas de CIMA
+│   │   ├── almacenamiento.py      # guardado raw (JSON) y CSV
+│   │   ├── transformaciones.py    # JSON de medicamentos → tabla plana
+│   │   ├── limpieza_medicamentos.py
+│   │   └── incidencias.py         # une snapshots y backfill en episodios
+│   └── backend/                   # lógica del producto
+│       ├── datos.py               # acceso a datos (hoy ficheros; PostgreSQL en NF4)
+│       └── servicios.py           # búsqueda, ficha y sustitutos
+├── requirements.txt
+├── .env.example
+└── README.md
 ```
-
 ## Flujo de trabajo
 
 - No se sube nada a `main` sin Pull Request aprobada por al menos otra persona del equipo.
@@ -107,4 +131,51 @@ farmapredict/
 
 ## Cómo ejecutarlo
 
-Pendiente: se completará cuando exista la primera versión del entorno.
+### Requisitos
+
+- Python 3.11 o superior
+- Git
+
+### 1. Clonar e instalar
+
+```bash
+git clone https://github.com/arondax/farmapredict.git
+cd farmapredict
+python -m venv .venv
+.venv\Scripts\activate          # Windows (en Linux/macOS: source .venv/bin/activate)
+python -m pip install -r requirements.txt
+```
+
+Usad `python -m pip` en lugar de `pip`. En Windows 11 con Smart App Control activo, `pip.exe` y algunas DLL de pandas pueden bloquearse ("Una directiva de Control de aplicaciones bloqueó este archivo"). Si ocurre, hay que desactivar Smart App Control o usar WSL2.
+
+### 2. Datos
+
+Abrir la rama `snapshots` como carpeta junto al repo (una sola vez):
+
+```bash
+git fetch origin snapshots
+git worktree add ../farmapredict-snapshots snapshots
+```
+
+Configurar la ruta (una sola vez):
+
+```bash
+copy .env.example .env          # en Linux/macOS: cp .env.example .env
+```
+
+Para traer los snapshots nuevos del día:
+
+```bash
+git -C ../farmapredict-snapshots pull
+```
+
+### 3. Generar los datos limpios
+
+```bash
+python -m src.construir_incidencias   # → data/cleaned/incidencias.csv
+python -m src.main                     # → data/cleaned/medicamentos-limpios_*.csv
+```
+
+### 4. API y front
+
+En desarrollo (rama `feature/api`).
