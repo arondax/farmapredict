@@ -5,3 +5,4 @@ urllib3==2.8.0
 tzdata==2026.5
 fastapi==0.162.0
 uvicorn==0.54.0
+python-dotenv==1.2.4
