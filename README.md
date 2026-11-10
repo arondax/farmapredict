@@ -131,10 +131,22 @@ farmapredict/
 
 ## Cómo ejecutarlo
 
-### Requisitos
+## Requisitos
 
-- Python 3.11 o superior
-- Git
+- **Python 3.11** (obligatorio)
+
+> ⚠️ No uséis Python 3.12+ por ahora: algunas dependencias (p. ej. `scikit-learn==1.6.1`)
+> no tienen wheels precompilados para versiones más nuevas y pip intentará compilarlas,
+> lo que falla en Windows sin compilador de C.
+
+### Instalación
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python --version   # debe mostrar 3.11.x
+python -m pip install -r requirements.txt
+```
 
 ### 1. Clonar e instalar
 
