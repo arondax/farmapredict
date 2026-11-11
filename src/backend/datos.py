@@ -5,6 +5,7 @@ Hoy lee la capa raw (último snapshot de cada endpoint). Cuando exista la capa
 cleaned, solo cambia el interior de este módulo: el resto del backend usa estas
 funciones y no sabe de dónde vienen los datos.
 """
+import csv
 import glob
 import json
 import os
@@ -13,10 +14,11 @@ from datetime import datetime
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
-from src.config import DATA_RAW_DIR
+from src.config import DATA_CLEANED_DIR, DATA_RAW_DIR
 
 CARPETA_CIMA = os.path.join(DATA_RAW_DIR, "cima")
 ZONA = ZoneInfo("Europe/Madrid")
+RUTA_RIESGO = os.path.join(DATA_CLEANED_DIR, "riesgo_linea_base.csv")
 
 
 # --- Utilidades ---
@@ -108,6 +110,23 @@ def cargar_vias() -> dict[str, frozenset[str]]:
         if m.get("nregistro")
     }
 
+@lru_cache(maxsize=1)
+def cargar_riesgo() -> dict[str, dict] | None:
+    """CN -> predicción de riesgo, o None si el modelo aún no ha generado el fichero."""
+    if not os.path.exists(RUTA_RIESGO):
+        return None
+    with open(RUTA_RIESGO, encoding="utf-8", newline="") as f:
+        return {
+            fila["cn"]: {
+                "cn": fila["cn"],
+                "riesgo": float(fila["riesgo"]),
+                "nivel": fila["nivel"],
+                "horizonte_dias": int(fila["horizonte_dias"]),
+                "modelo": fila["modelo"],
+                "fecha_calculo": fila["fecha_calculo"],
+            }
+            for fila in csv.DictReader(f, delimiter=";")
+        }
 
 def fechas_datos() -> dict[str, str]:
     """Fecha de cada snapshot cargado (para /health)."""
@@ -116,5 +135,5 @@ def fechas_datos() -> dict[str, str]:
 
 def recargar() -> None:
     """Vacía la caché para leer los últimos snapshots sin reiniciar el servidor."""
-    for funcion in (cargar_presentaciones, cargar_problemas_activos, indice_por_dcp, cargar_vias):
+    for funcion in (cargar_presentaciones, cargar_problemas_activos, indice_por_dcp, cargar_vias, cargar_riesgo):
         funcion.cache_clear()

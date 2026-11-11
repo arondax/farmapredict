@@ -129,3 +129,12 @@ def sustitutos(cn: str) -> dict | None:
         "alternativas": _salida(alternativas),
         "criterio_alternativas": CRITERIO_ALTERNATIVAS,
     }
+class ModeloNoDisponible(Exception):
+    """El fichero de riesgo todavía no existe."""
+
+
+def riesgo(cn: str) -> dict | None:
+    tabla = datos.cargar_riesgo()
+    if tabla is None:
+        raise ModeloNoDisponible
+    return tabla.get(cn)
