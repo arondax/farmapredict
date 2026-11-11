@@ -26,6 +26,7 @@ import pandas as pd
 
 #Columnas que se van a extraer del dataset original
 MAPA_COLUMNAS = {
+    "cn": "cn",
     "nregistro": "nregistro",
     "nombre": "nombre_medicamento",
     "vtm": "principio_activo",
@@ -82,15 +83,15 @@ def _normalizar_clave(serie: pd.Series) -> pd.Series:
 def _renombrar_y_ordenar(df) -> pd.DataFrame:
     """
     Renombra las columnas del DataFrame según el mapa de columnas y las ordena.
-
-    Args:
-        df (pd.DataFrame): DataFrame original.
-    Returns:
-        pd.DataFrame: DataFrame con columnas renombradas y ordenadas.
+    Si 'cn' no existe en la entrada (snapshots de /medicamentos), usa 'nregistro' como fallback.
     """
+    df = df.copy()
+    if "cn" not in df.columns:
+        df["cn"] = df["nregistro"] if "nregistro" in df.columns else None
+
     faltan = set(MAPA_COLUMNAS) - set(df.columns)
     if faltan:
-      raise ValueError(f"Faltan columnas en la entrada: {sorted(faltan)}")
+        raise ValueError(f"Faltan columnas en la entrada: {sorted(faltan)}")
     return df.rename(columns=MAPA_COLUMNAS)[list(MAPA_COLUMNAS.values())]
 
 def _limpiar_texto(df) -> pd.DataFrame:
@@ -111,6 +112,8 @@ def _limpiar_texto(df) -> pd.DataFrame:
             .str.replace(r"\s+", " ", regex=True)  # Elimina espacios dobles
             .str.strip()  # Elimina espacios al inicio y final
         )
+    if "cn" in df.columns:
+        df["cn"] = df["cn"].astype("string").str.zfill(6)
     return df
 
 def _tipar_columnas(df) -> pd.DataFrame:
