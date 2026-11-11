@@ -4,7 +4,7 @@ Predicción de desabastecimientos de medicamentos y recomendación de sustitutiv
 
 > Proyecto del Curso de Especialización en Inteligencia Artificial y Big Data (Planeta FP) · Módulo C088 · Semestre 2609
 >
-> **Estado:** fase NF1 (presentación y viabilidad). Aún no hay código; el stack y el alcance son provisionales y se irán refinando.
+> **Estado:** Fase NF3 completada (Modelo de línea base entrenado y evaluado).
 
 ## Objetivo
 
@@ -12,11 +12,9 @@ Construir una plataforma que permita estimar el riesgo de desabastecimiento de u
 
 **Criterios de éxito**
 
-1. El clasificador supera en PR-AUC a una línea base ingenua (tasa histórica de incidencias por código ATC).
+1. El clasificador supera en PR-AUC a una línea base ingenua (tasa histórica de incidencias por código ATC / VTM). **[Superado en NF3]**
 2. El recomendador propone al menos un sustitutivo para la mayoría de los medicamentos con problema de suministro.
 3. Todo el sistema se levanta con un único `docker compose up`.
-
-<!-- Los umbrales numéricos se fijarán tras medir la línea base (semana 2). -->
 
 ## Problema
 
@@ -51,19 +49,47 @@ La información sobre problemas de suministro de medicamentos es pública, pero 
 
 Los sustitutivos que recomiende el sistema son **informativos**: la decisión final corresponde siempre al farmacéutico.
 
-## Arquitectura (alto nivel, provisional)
+## Arquitectura
 
 | Pieza | Diseño (Fase 1) | Implementado en NF3 |
 |---|---|---|
 | Ingesta | Airflow + Python | Python + **GitHub Actions con cron** (el plan B de la Fase 1). Snapshot diario de problemas de suministro en la rama `snapshots` |
 | Almacenamiento | PostgreSQL | Ficheros (raw en la rama `snapshots`, limpio en `data/cleaned/`) servidos a través de `src/backend/datos.py`. PostgreSQL, en NF4 |
-| Modelo de riesgo | XGBoost + regresión logística como baseline | Regresión logística + tasa ingenua (en desarrollo). XGBoost, en NF4 |
+| Modelo de riesgo | XGBoost + regresión logística como baseline | Regresión logística + Imputación de nulos + Escalado estándar (Implementado). XGBoost, en NF4 |
 | Recomendador | Reglas de equivalencia | Sustitutos por DCP + alternativas por principio activo y vía |
-| API | FastAPI | En desarrollo |
+| API | FastAPI | En desarrollo (`/medicamentos/{cn}/riesgo` consume `riesgo_linea_base.csv`) |
 | Dashboard | Streamlit | En desarrollo |
 | Entorno | Docker Compose | Entorno virtual de Python. Docker Compose, en NF4 |
 
 Prophet, Qdrant/embeddings y PySpark forman parte de la ampliación (ver Alcance). Entorno base: Python 3.11.
+
+## Modelo de Línea Base (NF3)
+
+Se ha implementado y entrenado el pipeline del modelo de regresión logística de línea base (`src.api.entrenar`), el cual estima la probabilidad/riesgo de que un medicamento comercializado empiece un problema de suministro en los próximos 30 días.
+
+### Evaluación y Resultados (Out-of-Sample)
+
+La evaluación se realizó mediante un **split temporal estricto** reservando las últimas 4 semanas de datos para el conjunto de test y dejando un margen de 30 días entre train y test para evitar la fuga de información (*data leakage*).
+
+- **Dataset total:** 302.748 observaciones (23 fechas de corte semanales entre mayo y octubre de 2026).
+- **Prevalencia global:** 0,0097 (0,97 %).
+- **Prevalencia en test:** 0,0116 (1,16 %).
+- **PR-AUC Tasa Ingenua (Baseline por VTM):** 0,0174
+- **PR-AUC Regresión Logística (Modelo):** **0,0256** *(Supera a la tasa ingenua)*
+- **Precisión Top 100 semanal:** 0,028 (2,8 % de acierto sobre las 100 presentaciones de mayor riesgo por semana).
+
+### Coeficientes Clave
+- **Empujan el riesgo al alza (Coeficientes Positivos):** Historial de incidencias del laboratorio (`inc_lab_90d`: +0.744), incidencias activas en el mismo VTM (`activas_vtm_t`: +0.444), requerimiento de receta (`receta`: +0.148) y antigüedad en años (`antiguedad_anios`: +0.128).
+- **Reducen el riesgo (Coeficientes Negativos):** Número de alternativas por VTM comercializadas (`n_alt_vtm`: -0.556) y número de laboratorios competidores (`n_labs_vtm`: -0.112).
+
+### Artefactos Generados
+- `data/cleaned/riesgo_linea_base.csv`: Predicciones con el nivel de riesgo categorizado (`alto`, `medio`, `bajo`) por percentiles para consumo directo de la API.
+- `models/regresion_logistica_v0.joblib`: Binario del pipeline completo entrenado (Imputer + Scaler + LogisticRegression).
+
+### Limitaciones Técnicas Documentadas
+1. **Puntuación de riesgo:** La salida `riesgo` es una puntuación relativa y no una probabilidad absoluta, debido al ajuste del parámetro `class_weight="balanced"` para compensar el desbalance de clases. Los niveles de riesgo se asignan mediante percentiles (p95 = alto, p80 = medio).
+2. **Medicamentos con problema activo:** Se excluyen de las predicciones en la fecha de corte, ya que el modelo predice *nuevos* desabastecimientos. La API devuelve 404 "Sin predicción" para CNs con incidencia activa.
+3. **Limitación del histórico:** El periodo de entrenamiento comienza en mayo de 2026 debido a la disponibilidad histórica de los snapshots en AEMPS CIMA.
 
 ## Datos
 
@@ -73,17 +99,14 @@ Prophet, Qdrant/embeddings y PySpark forman parte de la ampliación (ver Alcance
 
 **Etiqueta:** se considera desabastecimiento cuando existe un problema de suministro activo para el medicamento en los 30 días posteriores a la fecha de referencia (sujeto a lo que devuelva CIMA).
 
-<!-- TODO: documentar condiciones de reutilización y límites de la API de CIMA y del Ministerio (semana 1). -->
-
 Los datasets **no se versionan** en el repositorio (`data/` está en `.gitignore`).
 
 | Fichero en `snapshots` (`raw/cima/`) | Contenido |
 |---|---|
 | `psuministro_YYYYmmdd_HHMMSS.json` | Problemas de suministro activos de cada día (uno por día) |
 | `backfill_psuministro_20261105.jsonl` | Último episodio de cada CN (consultado el 05/11/2026) |
-| `presentaciones_20261105_173524.json` | Catálogo de presentaciones (CN) |
+| `presentaciones_20261105_173524.json` | Catálogo de presentaciones (CN de 6 dígitos) |
 | `medicamentos-todos_20261019_181813.json` | Catálogo de medicamentos (nregistro) |
-
 
 ## Equipo
 
@@ -96,25 +119,27 @@ Los datasets **no se versionan** en el repositorio (`data/` está en `.gitignore
 
 ## Organización del repositorio
 
-
 ```text
 farmapredict/
 ├── .github/workflows/
 │   └── snapshot_psuministro.yml   # snapshot diario de /psuministro (cron)
 ├── docs/                          # documentación, entregables y contrato de la API
+├── models/                        # modelos entrenados (.joblib)
+│   └── regresion_logistica_v0.joblib
 ├── src/
 │   ├── config.py                  # rutas y configuración (.env)
-│   ├── main.py                    # pipeline de medicamentos: raw → cleaned
+│   ├── main.py                    # pipeline de presentaciones: raw → cleaned
 │   ├── snapshot_diario.py         # descarga un endpoint paginado de CIMA (raw)
 │   ├── backfill_psuministro.py    # backfill del último episodio por CN (ejecutado una vez)
 │   ├── construir_incidencias.py   # genera data/cleaned/incidencias.csv
-│   ├── api/                       # cliente de CIMA y transformaciones
+│   ├── api/                       # cliente de CIMA, transformaciones y entrenamiento
 │   │   ├── api.py                 # cliente HTTP con reintentos y paginación
 │   │   ├── esquemas_respuesta.py  # modelos Pydantic de las respuestas de CIMA
 │   │   ├── almacenamiento.py      # guardado raw (JSON) y CSV
 │   │   ├── transformaciones.py    # JSON de medicamentos → tabla plana
 │   │   ├── limpieza_medicamentos.py
-│   │   └── incidencias.py         # une snapshots y backfill en episodios
+│   │   ├── incidencias.py         # une snapshots y backfill en episodios
+│   │   └── entrenar.py            # pipeline de entrenamiento y evaluación ML (NF3)
 │   └── backend/                   # lógica del producto
 │       ├── datos.py               # acceso a datos (hoy ficheros; PostgreSQL en NF4)
 │       └── servicios.py           # búsqueda, ficha y sustitutos
@@ -185,9 +210,14 @@ git -C ../farmapredict-snapshots pull
 
 ```bash
 python -m src.construir_incidencias   # → data/cleaned/incidencias.csv
-python -m src.main                     # → data/cleaned/medicamentos-limpios_*.csv
+python -m src.main                     # → data/cleaned/presentaciones.csv
+```
+### 4. Entrenar el modelo de línea base (ML)
+
+```bash
+python -m src.api.entrenar
 ```
 
-### 4. API y front
+### 5. API y front
 
 En desarrollo (rama `feature/api`).
