@@ -3,8 +3,8 @@ name: Snapshot psuministro
 
 on:
   schedule:
-  - cron: "17 6 * * *"   # 07:17 / 08:17 Madrid. Minuto no redondo: el :00 es la hora más saturada
-  - cron: "17 18 * * *"  # reintento por si la primera se retrasa o se pierde; idempotente
+    - cron: "17 6 * * *"   # 07:17 / 08:17 Madrid. Minuto no redondo: el :00 es la hora más saturada
+    - cron: "17 18 * * *"  # reintento por si la primera se retrasa o se pierde; idempotente
   workflow_dispatch:       # ejecución manual: la primera prueba se hace así
 
 permissions:

@@ -1,7 +1,6 @@
 #Clase para HARDCODEAR las rutas de los archivos
-
-import os
 from dotenv import load_dotenv
+import os
 
 # URL base de la API pública de CIMA (AEMPS). No requiere API key.
 # Se deja hardcodeada porque no es un secreto y es igual en todos los entornos.
@@ -10,8 +9,9 @@ from dotenv import load_dotenv
 #   CIMA_BASE_URL = os.getenv("CIMA_BASE_URL", "https://cima.aemps.es/cima/rest")
 # y añadir `# CIMA_BASE_URL=...` comentada en .env.example.
 
+load_dotenv()  # lee .env si existe; las variables ya definidas (p. ej. en GitHub Actions) tienen prioridad
+
 #RUTAS
-load_dotenv()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DATA_DIR = os.path.join(BASE_DIR, "data")
